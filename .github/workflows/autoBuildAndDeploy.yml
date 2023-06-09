@@ -1,0 +1,55 @@
+name: Android Build ## name of the workflow
+
+on:
+   push:
+    branches: [master]
+
+jobs:
+  android-build:
+    name: Android Build
+    runs-on: ubuntu-latest # using ubuntu latest version / or you can use a specific version
+
+    steps:
+      - name: Check out Git repository # clone the repo to local ci workspace
+        uses: actions/checkout@v2
+
+      - name: Set up our JDK environment # setup JDK environment: mandatory as we need to build  android project
+        uses: actions/setup-java@v1.4.3
+        with:
+          java-version: 11
+      
+      - name: Run with node 14 # support legacy using node 14 version
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run jetifier
+        run: npx jetify
+      
+      - name: Open android folder with sudo
+        run: chmod -R +x android
+      
+      - name: Generate App AAB file
+        run: cd android && ./gradlew bundleRelease --no-daemon
+        
+      ## Distribute  App to google play beta track
+      - name: Upload App to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.ANDROID_SERVICE_ACCOUNT_JSON_TEXT }}
+          packageName: com.your.package
+          releaseFiles: android/app/build/outputs/bundle/release/*.aab
+          track: beta
+          status: completed
+          inAppUpdatePriority: 2
+
+      # Commit and push the new version file
+      - name: Commit and push version code file
+        run: |
+          git config --global user.name 'Your user name'
+          git config --global user.email 'Your mail'
+          git commit -m 'new version' android/app/version.properties
+          git push
